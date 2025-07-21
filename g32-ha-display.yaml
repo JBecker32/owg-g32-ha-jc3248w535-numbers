@@ -74,6 +74,9 @@ substitutions:
 # Zeitinterval für Lautsprecher (Beeper) Alarmmeldungen festlegen Default: 5s
   Beeper_interval: "5s" 
 
+# Uhrzeit 11:32 oben in der Mitte der Statuszeile anzeigen? true = Ja, false = Nein
+  Show_Time: 'true'
+
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -90,7 +93,7 @@ esphome:
 
   project:
     name: "g32hacs.display480_320"
-    version: "0.9.7"
+    version: "0.9.8"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -274,6 +277,10 @@ globals:
     type: int
     initial_value: '0'  
     
+  - id: show_time
+    type: bool
+    initial_value: ${Show_Time}
+
   - id: zone1_value
     type: int
     initial_value: '0'  
@@ -349,6 +356,21 @@ number:
     max_value: 3600
     step: 5
     mode: box
+time:
+  platform: sntp
+  id: sntp_time
+  timezone: Europe/Berlin
+  servers:
+   - ntp0.ntp-servers.net
+   - ntp1.ntp-servers.net
+   - ntp2.ntp-servers.net
+  on_time_sync:
+    - script.execute: time_update
+  on_time:
+    - minutes: '*'
+      seconds: 0
+      then:
+        - script.execute: time_update
 
 lvgl:
   draw_rounding: 8 # necessary for the axs15231 display controller
@@ -1019,6 +1041,18 @@ lvgl:
             text_align: CENTER
             width: 40
             text: "\uF071" # invertiertes Ausrufungszeichen
+            hidden: true
+
+        # time string hours:minutes
+        - label:
+            id: display_time
+            x: 200
+            y: 4
+            text_font: MONTSERRAT_20
+            text_color: 0xffffff
+            text_align: CENTER
+            width: 80
+            text: "00:00"
             hidden: true
 
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -1793,3 +1827,19 @@ binary_sensor:
             } else {
               return true;
             };      
+
+script:
+  - id: time_update
+    then:
+      - lvgl.label.update:
+          id: display_time
+          text: !lambda |-
+            static char time_buf[16];
+            auto now = id(sntp_time).now();
+            snprintf(time_buf, sizeof(time_buf), "%02d:%02d", now.hour, now.minute);
+            return time_buf;
+      - lvgl.label.update:
+          id: display_time
+          hidden: !lambda |-
+            return (!id(show_time));
+            
